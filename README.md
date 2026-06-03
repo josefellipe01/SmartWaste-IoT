@@ -11,5 +11,6 @@ Sistema IoT para Otimização da Gestão de Resíduos UrbanosO SmartWaste é uma
 🌐 Interfaces e Protocolos de ComunicaçãoRede: Conexão sem fios via pilha nativa TCP/IP do ESP32.Protocolo de Aplicação: MQTT (Message Queuing Telemetry Transport) sob o modelo de publicação/assinatura.Broker Utilizado: HiveMQ Público (broker.hivemq.com:1883).Tópico de Publicação: MACKENZIE/SMARTWASTE/VOLUMETRIA.
 
 🔗 Links do ProjetoVídeo de Apresentação no YouTube: Assista aqui ao vídeo com a demonstração prática
+https://youtu.be/pMk3fPBPZUc?si=9fnsVGIh4nw4SX3v
 
 Desenvolvido por: José Fellipe (RA: 10433493) Instituição: Universidade Presbiteriana Mackenzie
