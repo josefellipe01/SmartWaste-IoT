@@ -1,0 +1,1616 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>SmartWaste IoT Dashboard | Mackenzie UPM</title>
+    
+    <!-- Metas de SEO -->
+    <meta name="description" content="Dashboard IoT de monitoramento em tempo real do nível volumétrico de lixeiras urbanas inteligentes, integrado ao protocolo MQTT e alinhado ao ODS 11." />
+    
+    <!-- Google Fonts & Font Awesome Icons -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    
+    <!-- MQTT Client Library -->
+    <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+
+    <style>
+        :root {
+            --bg-primary: #0a0c10;
+            --bg-secondary: #121620;
+            --bg-card: rgba(22, 28, 38, 0.7);
+            --bg-card-hover: rgba(28, 35, 48, 0.85);
+            --border-color: rgba(255, 255, 255, 0.08);
+            --border-color-hover: rgba(255, 255, 255, 0.15);
+            --mackenzie-red: #c90c0f;
+            --mackenzie-red-light: #f53b3f;
+            --mackenzie-red-glow: rgba(201, 12, 15, 0.3);
+            --text-primary: #f3f4f6;
+            --text-secondary: #9ca3af;
+            --text-muted: #6b7280;
+            
+            /* Cores de Status */
+            --color-vazia: #10b981;
+            --color-baixa: #3b82f6;
+            --color-normal: #f59e0b;
+            --color-alta: #f97316;
+            --color-critica: #ef4444;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        body {
+            background-color: var(--bg-primary);
+            background-image: 
+                radial-gradient(at 0% 0%, rgba(201, 12, 15, 0.08) 0px, transparent 50%),
+                radial-gradient(at 50% 0%, rgba(59, 130, 246, 0.05) 0px, transparent 50%),
+                radial-gradient(at 100% 100%, rgba(16, 185, 129, 0.03) 0px, transparent 50%);
+            color: var(--text-primary);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            padding: 24px;
+            overflow-x: hidden;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 1280px;
+            margin: 0 auto;
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+            flex-grow: 1;
+        }
+
+        /* CABEÇALHO ACADÊMICO */
+        header {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 20px;
+            padding: 24px;
+            backdrop-filter: blur(16px);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 24px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+            position: relative;
+            overflow: hidden;
+        }
+
+        header::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 4px;
+            height: 100%;
+            background: var(--mackenzie-red);
+        }
+
+        .header-main {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .header-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(201, 12, 15, 0.1);
+            border: 1px solid rgba(201, 12, 15, 0.2);
+            padding: 4px 12px;
+            border-radius: 30px;
+            width: fit-content;
+        }
+
+        .header-badge .dot {
+            width: 6px;
+            height: 6px;
+            background-color: var(--mackenzie-red-light);
+            border-radius: 50%;
+            animation: pulse-red 2s infinite;
+        }
+
+        .header-badge span {
+            font-size: 11px;
+            font-weight: 700;
+            color: var(--mackenzie-red-light);
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+        }
+
+        h1 {
+            font-size: 26px;
+            font-weight: 800;
+            letter-spacing: -0.02em;
+            background: linear-gradient(135deg, var(--text-primary) 30%, #e5e7eb 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .header-meta {
+            font-size: 13px;
+            color: var(--text-secondary);
+        }
+
+        .header-meta strong {
+            color: var(--text-primary);
+        }
+
+        .header-academic {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            text-align: right;
+            gap: 4px;
+            border-left: 1px solid rgba(255, 255, 255, 0.1);
+            padding-left: 24px;
+        }
+
+        .univ-name {
+            font-size: 12px;
+            font-weight: 700;
+            letter-spacing: 0.05em;
+            color: var(--text-primary);
+            text-transform: uppercase;
+        }
+
+        .author-name {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .advisor-name {
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+
+        /* ODS 11 BADGE */
+        .ods-badge {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            background: #f26a2e; /* Cor Oficial ODS 11 */
+            border-radius: 12px;
+            padding: 8px 16px;
+            color: white;
+            box-shadow: 0 4px 15px rgba(242, 106, 46, 0.25);
+            max-width: 260px;
+            text-decoration: none;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .ods-badge:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(242, 106, 46, 0.35);
+        }
+
+        .ods-number {
+            font-size: 28px;
+            font-weight: 900;
+            line-height: 1;
+            border-right: 1px solid rgba(255, 255, 255, 0.3);
+            padding-right: 12px;
+        }
+
+        .ods-text {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .ods-text span:first-child {
+            font-size: 9px;
+            font-weight: 800;
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+        }
+
+        .ods-text span:last-child {
+            font-size: 11px;
+            font-weight: 600;
+            line-height: 1.2;
+        }
+
+        /* GRID DE MÉTRIAS PRINCIPAIS */
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 20px;
+        }
+
+        .metric-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 18px;
+            padding: 20px;
+            backdrop-filter: blur(16px);
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            position: relative;
+            overflow: hidden;
+            transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.3s, box-shadow 0.3s;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+        }
+
+        .metric-card:hover {
+            transform: translateY(-4px);
+            border-color: var(--border-color-hover);
+            box-shadow: 0 12px 30px rgba(0, 0, 0, 0.3);
+            background: var(--bg-card-hover);
+        }
+
+        .metric-label {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .metric-value {
+            font-size: 32px;
+            font-weight: 800;
+            letter-spacing: -0.03em;
+            color: var(--text-primary);
+            margin-top: 4px;
+        }
+
+        .metric-indicator {
+            width: 100%;
+            height: 4px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 2px;
+            overflow: hidden;
+            margin-top: auto;
+        }
+
+        .metric-progress {
+            height: 100%;
+            width: 0%;
+            background: var(--mackenzie-red);
+            border-radius: 2px;
+            transition: width 0.5s cubic-bezier(0.16, 1, 0.3, 1), background-color 0.5s;
+        }
+
+        /* CONEXÃO MQTT CARD */
+        #conexao-card .pulse-indicator {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            display: inline-block;
+        }
+
+        .state-online {
+            background-color: var(--color-vazia);
+            box-shadow: 0 0 12px var(--color-vazia);
+            animation: pulse-green 1.5s infinite;
+        }
+
+        .state-offline {
+            background-color: var(--color-critica);
+            box-shadow: 0 0 12px var(--color-critica);
+            animation: pulse-red 1.5s infinite;
+        }
+
+        /* PAINEL CENTRAL */
+        .main-panel {
+            display: grid;
+            grid-template-columns: 4fr 5fr;
+            gap: 24px;
+        }
+
+        /* VISUALIZADOR DA LIXEIRA */
+        .bin-section {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 20px;
+            padding: 30px;
+            backdrop-filter: blur(16px);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            min-height: 450px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+        }
+
+        .bin-section-title {
+            position: absolute;
+            top: 24px;
+            left: 24px;
+            font-size: 14px;
+            font-weight: 700;
+            color: var(--text-secondary);
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+        }
+
+        .bin-glow-ambient {
+            position: absolute;
+            width: 250px;
+            height: 250px;
+            border-radius: 50%;
+            background: var(--color-vazia);
+            filter: blur(60px);
+            opacity: 0.05;
+            transition: background-color 0.8s, opacity 0.5s, transform 0.5s;
+            z-index: 1;
+            pointer-events: none;
+        }
+
+        /* SVG LIXEIRA PREMIUM */
+        .bin-visualizer-container {
+            width: 200px;
+            height: 300px;
+            position: relative;
+            z-index: 2;
+            margin-top: 20px;
+        }
+
+        .bin-svg-container {
+            width: 100%;
+            height: 100%;
+        }
+
+        .sonar-wave {
+            animation: sonar-propagate 1.5s infinite linear;
+            transform-origin: center 10px;
+        }
+
+        .sonar-wave:nth-child(2) {
+            animation-delay: 0.75s;
+        }
+
+        .bin-overlay-info {
+            position: absolute;
+            bottom: -32px;
+            text-align: center;
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--text-muted);
+            letter-spacing: 0.03em;
+            text-transform: uppercase;
+        }
+
+        /* PAINEL DE DETALHES */
+        .details-section {
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+        }
+
+        /* CARTÃO DE STATUS */
+        .status-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 20px;
+            padding: 24px;
+            backdrop-filter: blur(16px);
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+        }
+
+        .status-card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .status-card-title {
+            font-size: 14px;
+            font-weight: 700;
+            color: var(--text-secondary);
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+        }
+
+        .status-badge {
+            font-size: 13px;
+            font-weight: 800;
+            padding: 8px 16px;
+            border-radius: 30px;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: #ffffff;
+            transition: all 0.3s;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        }
+
+        .badge-vazia { background-color: var(--color-vazia); border: 1px solid rgba(255,255,255,0.1); }
+        .badge-baixa { background-color: var(--color-baixa); border: 1px solid rgba(255,255,255,0.1); }
+        .badge-normal { background-color: var(--color-normal); border: 1px solid rgba(255,255,255,0.1); }
+        .badge-alta { background-color: var(--color-alta); border: 1px solid rgba(255,255,255,0.1); }
+        .badge-critica { 
+            background-color: var(--color-critica); 
+            border: 1px solid rgba(255,255,255,0.1);
+            animation: pulse-glow-red 1.5s infinite; 
+        }
+
+        /* TABELA DE LATÊNCIA EXPERIMENTAL */
+        .latency-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 20px;
+            padding: 24px;
+            backdrop-filter: blur(16px);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+        }
+
+        .latency-title {
+            font-size: 14px;
+            font-weight: 700;
+            color: var(--text-secondary);
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .latency-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 12.5px;
+            text-align: left;
+        }
+
+        .latency-table th {
+            color: var(--text-muted);
+            font-weight: 700;
+            padding: 10px 12px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+            text-transform: uppercase;
+            font-size: 10.5px;
+            letter-spacing: 0.03em;
+        }
+
+        .latency-table td {
+            padding: 10px 12px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+            color: var(--text-secondary);
+        }
+
+        .latency-table tr:last-child td {
+            border-bottom: none;
+        }
+
+        .latency-table tr.highlight-row td {
+            color: var(--text-primary);
+            font-weight: 700;
+            background: rgba(255, 255, 255, 0.02);
+            border-top: 1px dashed rgba(255, 255, 255, 0.1);
+        }
+
+        .latency-badge {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-family: 'JetBrains Mono', monospace;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        /* CONSOLE DE TELEMETRIA */
+        .console-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 20px;
+            padding: 24px;
+            backdrop-filter: blur(16px);
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            flex-grow: 1;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+            min-height: 200px;
+        }
+
+        .console-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .console-title {
+            font-size: 14px;
+            font-weight: 700;
+            color: var(--text-secondary);
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+        }
+
+        .console-body {
+            background: #07090e;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 12px;
+            padding: 16px;
+            flex-grow: 1;
+            color: #10b981;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 12px;
+            overflow: auto;
+            white-space: pre-wrap;
+            box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.5);
+            max-height: 190px;
+        }
+
+        /* MODAL DE ALERTA */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: rgba(4, 5, 8, 0.85);
+            backdrop-filter: blur(12px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        .modal-overlay.active {
+            opacity: 1;
+            pointer-events: all;
+        }
+
+        .modal-box {
+            background: #141822;
+            border: 2px solid var(--mackenzie-red);
+            border-radius: 24px;
+            width: 90%;
+            max-width: 520px;
+            padding: 36px;
+            box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.7), 0 0 30px var(--mackenzie-red-glow);
+            transform: scale(0.9) translateY(20px);
+            transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+            gap: 20px;
+            position: relative;
+        }
+
+        .modal-overlay.active .modal-box {
+            transform: scale(1) translateY(0);
+        }
+
+        .modal-icon-alert {
+            width: 64px;
+            height: 64px;
+            background: rgba(239, 68, 68, 0.1);
+            border: 2px solid var(--color-critica);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--color-critica);
+            margin-bottom: 8px;
+            animation: pulse-border-red 1.5s infinite;
+        }
+
+        .modal-icon-alert svg {
+            width: 32px;
+            height: 32px;
+            fill: currentColor;
+        }
+
+        .modal-title {
+            font-size: 22px;
+            font-weight: 800;
+            color: var(--text-primary);
+            letter-spacing: -0.01em;
+        }
+
+        .modal-description {
+            font-size: 14px;
+            line-height: 1.6;
+            color: var(--text-secondary);
+        }
+
+        .modal-description strong {
+            color: var(--text-primary);
+        }
+
+        /* SIMULAÇÃO DE MAPA NO MODAL */
+        .modal-map-container {
+            width: 100%;
+            height: 140px;
+            background: #0b0d13;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 16px;
+            position: relative;
+            overflow: hidden;
+            box-shadow: inset 0 2px 10px rgba(0,0,0,0.5);
+            margin: 8px 0;
+        }
+
+        .map-bg-grid {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            stroke: rgba(255, 255, 255, 0.03);
+            stroke-width: 1;
+        }
+
+        .map-route-line {
+            stroke: var(--color-baixa);
+            stroke-width: 3;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+            fill: none;
+            stroke-dasharray: 6;
+            animation: route-flow 1.5s infinite linear;
+        }
+
+        .map-marker-bin {
+            fill: var(--color-critica);
+            stroke: #ffffff;
+            stroke-width: 1.5;
+            animation: map-marker-pulse 1.5s infinite;
+            transform-origin: 380px 30px;
+        }
+
+        .truck-translator {
+            animation: truck-drive-translate 6s infinite ease-in-out;
+        }
+
+        .truck-rotator {
+            transform-origin: 0px 0px;
+            animation: truck-drive-rotate 6s infinite ease-in-out;
+        }
+
+        .modal-btn-confirm {
+            width: 100%;
+            background: var(--mackenzie-red);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            padding: 14px 28px;
+            font-size: 14px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: background-color 0.2s, transform 0.2s, box-shadow 0.2s;
+            box-shadow: 0 4px 15px var(--mackenzie-red-glow);
+        }
+
+        .modal-btn-confirm:hover {
+            background-color: var(--mackenzie-red-light);
+            transform: translateY(-1px);
+            box-shadow: 0 6px 20px rgba(245, 59, 63, 0.4);
+        }
+
+        .modal-btn-confirm:active {
+            transform: translateY(1px);
+        }
+
+        /* GAVETA DE SIMULAÇÃO (DESENVOLVEDOR) */
+        .sim-drawer-btn {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+            border-radius: 50%;
+            width: 48px;
+            height: 48px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+            transition: all 0.2s;
+            z-index: 90;
+            backdrop-filter: blur(10px);
+        }
+
+        .sim-drawer-btn:hover {
+            transform: rotate(30deg) scale(1.05);
+            border-color: var(--border-color-hover);
+            background: var(--bg-card-hover);
+        }
+
+        .sim-panel-drawer {
+            position: fixed;
+            bottom: -320px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 90%;
+            max-width: 800px;
+            background: #11141c;
+            border: 1px solid var(--border-color);
+            border-bottom: none;
+            border-radius: 20px 20px 0 0;
+            padding: 24px;
+            box-shadow: 0 -10px 40px rgba(0,0,0,0.5);
+            transition: bottom 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+            z-index: 85;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .sim-panel-drawer.active {
+            bottom: 0;
+        }
+
+        .sim-panel-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+            padding-bottom: 10px;
+        }
+
+        .sim-panel-title {
+            font-size: 13px;
+            font-weight: 700;
+            color: var(--mackenzie-red-light);
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+        }
+
+        .sim-panel-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+
+        .sim-control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .sim-control-label {
+            font-size: 12px;
+            color: var(--text-secondary);
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .sim-slider {
+            -webkit-appearance: none;
+            width: 100%;
+            height: 6px;
+            border-radius: 3px;
+            background: rgba(255,255,255,0.08);
+            outline: none;
+        }
+
+        .sim-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: var(--mackenzie-red);
+            cursor: pointer;
+            transition: background 0.15s;
+        }
+
+        .sim-slider::-webkit-slider-thumb:hover {
+            background: var(--mackenzie-red-light);
+        }
+
+        .sim-btn-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 8px;
+        }
+
+        .sim-btn {
+            flex: 1;
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.08);
+            color: var(--text-primary);
+            padding: 10px;
+            font-size: 12px;
+            font-weight: 600;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .sim-btn:hover {
+            background: rgba(255,255,255,0.1);
+            border-color: rgba(255,255,255,0.15);
+        }
+
+        .sim-btn-primary {
+            background: var(--mackenzie-red);
+            border-color: rgba(255,255,255,0.05);
+        }
+
+        .sim-btn-primary:hover {
+            background: var(--mackenzie-red-light);
+        }
+
+        /* ANIMAÇÕES CSS */
+        @keyframes pulse-red {
+            0% { transform: scale(0.9); opacity: 0.6; }
+            50% { transform: scale(1.1); opacity: 1; }
+            100% { transform: scale(0.9); opacity: 0.6; }
+        }
+
+        @keyframes pulse-green {
+            0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4); }
+            70% { box-shadow: 0 0 0 10px rgba(16, 185, 129, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+        }
+
+        @keyframes pulse-glow-red {
+            0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
+            70% { box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+        }
+
+        @keyframes pulse-border-red {
+            0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.3); border-color: rgba(239, 68, 68, 0.7); }
+            70% { box-shadow: 0 0 0 8px rgba(239, 68, 68, 0); border-color: rgba(239, 68, 68, 0.3); }
+            100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); border-color: rgba(239, 68, 68, 0.7); }
+        }
+
+        @keyframes sonar-propagate {
+            0% { transform: scale(0.5); opacity: 0.8; }
+            100% { transform: scale(1.8); opacity: 0; }
+        }
+
+        @keyframes route-flow {
+            to { stroke-dashoffset: -12; }
+        }
+
+        @keyframes map-marker-pulse {
+            0% { r: 4px; stroke-width: 1px; }
+            50% { r: 6px; stroke-width: 2.5px; stroke: rgba(239, 68, 68, 0.5); }
+            100% { r: 4px; stroke-width: 1px; }
+        }
+
+        @keyframes truck-drive-translate {
+            0% { transform: translate(50px, 90px); opacity: 0; }
+            5% { opacity: 1; }
+            30% { transform: translate(250px, 90px); }
+            35% { transform: translate(250px, 90px); }
+            60% { transform: translate(250px, 30px); }
+            65% { transform: translate(250px, 30px); }
+            90% { transform: translate(370px, 30px); opacity: 1; }
+            95% { transform: translate(370px, 30px); opacity: 0; }
+            100% { transform: translate(50px, 90px); opacity: 0; }
+        }
+
+        @keyframes truck-drive-rotate {
+            0% { transform: rotate(0deg); }
+            30% { transform: rotate(0deg); }
+            35% { transform: rotate(-90deg); }
+            60% { transform: rotate(-90deg); }
+            65% { transform: rotate(0deg); }
+            90% { transform: rotate(0deg); }
+            95% { transform: rotate(180deg); }
+            100% { transform: rotate(180deg); }
+        }
+
+        /* RESPONSIVIDADE */
+        @media (max-width: 1024px) {
+            .main-panel {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        @media (max-width: 850px) {
+            .metrics-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+            header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 16px;
+            }
+            .header-academic {
+                align-items: flex-start;
+                text-align: left;
+                border-left: none;
+                border-top: 1px solid rgba(255, 255, 255, 0.1);
+                padding-left: 0;
+                padding-top: 16px;
+                width: 100%;
+            }
+            .ods-badge {
+                width: 100%;
+                max-width: none;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .metrics-grid {
+                grid-template-columns: 1fr;
+            }
+            body {
+                padding: 16px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        
+        <!-- CABEÇALHO ACADÊMICO -->
+        <header>
+            <div class="header-main">
+                <div class="header-badge">
+                    <span class="dot"></span>
+                    <span>Monitoramento IoT Ativo</span>
+                </div>
+                <h1>SmartWaste Dashboard</h1>
+                <div class="header-meta">
+                    Projeto Integrado: Monitoramento Volumétrico via <strong>MQTT</strong> e <strong>Sensor Ultrassônico</strong>
+                </div>
+            </div>
+            
+            <!-- SELO ODS 11 -->
+            <a href="https://brasil.un.org/pt-br/sdgs/11" target="_blank" class="ods-badge" title="Saiba mais sobre o ODS 11">
+                <div class="ods-number">11</div>
+                <div class="ods-text">
+                    <span>ONU ODS 11</span>
+                    <span>Cidades e Comunidades Sustentáveis</span>
+                </div>
+            </a>
+
+            <!-- METADADOS MACKENZIE -->
+            <div class="header-academic">
+                <div class="univ-name">Mackenzie UPM</div>
+                <div class="author-name">José Fellipe (RA: 10433493)</div>
+                <div class="advisor-name">Orientador: Prof. Leandro Carlos</div>
+            </div>
+        </header>
+
+        <!-- CARTÕES DE MÉTRICAS -->
+        <div class="metrics-grid">
+            
+            <!-- CARD CONEXÃO -->
+            <div class="metric-card" id="conexao-card">
+                <div class="metric-label">
+                    <span>Conexão Broker</span>
+                    <span id="conexao-dot" class="pulse-indicator state-offline"></span>
+                </div>
+                <div class="metric-value" id="conexao-status">Offline</div>
+                <div class="metric-indicator">
+                    <div class="metric-progress" id="conexao-bar" style="width: 0%"></div>
+                </div>
+            </div>
+
+            <!-- CARD DISTÂNCIA -->
+            <div class="metric-card">
+                <div class="metric-label">
+                    <span>Distância Sensor</span>
+                    <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 2v20M17 5H7M17 19H7M22 12H2"></path></svg>
+                </div>
+                <div class="metric-value" id="distancia-value">-- cm</div>
+                <div class="metric-indicator">
+                    <div class="metric-progress" id="distancia-bar" style="width: 0%"></div>
+                </div>
+            </div>
+
+            <!-- CARD NÍVEL -->
+            <div class="metric-card">
+                <div class="metric-label">
+                    <span>Nível de Preenchimento</span>
+                    <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
+                </div>
+                <div class="metric-value" id="nivel-value">--%</div>
+                <div class="metric-indicator">
+                    <div class="metric-progress" id="nivel-bar" style="width: 0%"></div>
+                </div>
+            </div>
+
+            <!-- CARD LED BRILHO -->
+            <div class="metric-card">
+                <div class="metric-label">
+                    <span>Brilho Fita LED (PWM)</span>
+                    <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364-6.364l-.707.707M6.343 17.657l-.707.707m0-12.728l.707.707m11.314 11.314l.707-.707M12 7a5 5 0 100 10 5 5 0 000-10z"></path></svg>
+                </div>
+                <div class="metric-value" id="brilho-value">--</div>
+                <div class="metric-indicator">
+                    <div class="metric-progress" id="brilho-bar" style="width: 0%"></div>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- PAINEL CENTRAL (LIXEIRA & DETALHES) -->
+        <div class="main-panel">
+            
+            <!-- VISUALIZADOR DA LIXEIRA -->
+            <div class="bin-section">
+                <div class="bin-section-title">Visualização Volumétrica</div>
+                
+                <!-- Ambient LED feedback glow effect -->
+                <div class="bin-glow-ambient" id="bin-glow-ambient"></div>
+                
+                <div class="bin-visualizer-container">
+                    <div class="bin-svg-container">
+                        <svg viewBox="0 0 100 150" width="100%" height="100%">
+                            <!-- Defs para gradientes de preenchimento -->
+                            <defs>
+                                <linearGradient id="fluid-grad-green" x1="0" y1="0" x2="0" y2="1">
+                                    <stop offset="0%" stop-color="#10b981" />
+                                    <stop offset="100%" stop-color="#047857" />
+                                </linearGradient>
+                                <linearGradient id="fluid-grad-yellow" x1="0" y1="0" x2="0" y2="1">
+                                    <stop offset="0%" stop-color="#fbbf24" />
+                                    <stop offset="100%" stop-color="#d97706" />
+                                </linearGradient>
+                                <linearGradient id="fluid-grad-orange" x1="0" y1="0" x2="0" y2="1">
+                                    <stop offset="0%" stop-color="#f97316" />
+                                    <stop offset="100%" stop-color="#c2410c" />
+                                </linearGradient>
+                                <linearGradient id="fluid-grad-red" x1="0" y1="0" x2="0" y2="1">
+                                    <stop offset="0%" stop-color="#ef4444" />
+                                    <stop offset="100%" stop-color="#b91c1c" />
+                                </linearGradient>
+                                
+                                <!-- ClipPath do preenchimento interno -->
+                                <clipPath id="bin-interior-clip">
+                                    <path d="M22,35 L78,35 L71,135 Q70,140 65,140 L35,140 Q30,140 29,135 Z" />
+                                </clipPath>
+                            </defs>
+
+                            <!-- Ondas de Pulso do Sensor (Ultrassônico) -->
+                            <g id="sensor-sonar-waves" style="display: none;">
+                                <path class="sonar-wave" d="M35,28 Q50,42 65,28" stroke="#ef4444" stroke-width="1.5" fill="none" />
+                                <path class="sonar-wave" d="M40,32 Q50,44 60,32" stroke="#ef4444" stroke-width="1" fill="none" />
+                            </g>
+
+                            <!-- Desenho do Sensor no Topo -->
+                            <rect x="36" y="8" width="28" height="6" rx="2" fill="#374151" />
+                            <circle cx="43" cy="18" r="4.5" fill="#1f2937" stroke="#4b5563" stroke-width="1.5" />
+                            <circle cx="57" cy="18" r="4.5" fill="#1f2937" stroke="#4b5563" stroke-width="1.5" />
+                            <line x1="50" y1="8" x2="50" y2="18" stroke="#4b5563" stroke-width="1.5" />
+
+                            <!-- Corpo do Container (Vidro Externo) -->
+                            <path d="M20,30 L80,30 L72,136 Q70,142 64,142 L36,142 Q30,142 28,136 Z" 
+                                  fill="rgba(255, 255, 255, 0.03)" 
+                                  stroke="rgba(255, 255, 255, 0.15)" 
+                                  stroke-width="3.5" />
+                                  
+                            <!-- Suportes Laterais de Metal da Lixeira -->
+                            <path d="M12,40 L20,44" stroke="rgba(255,255,255,0.2)" stroke-width="2" />
+                            <path d="M88,40 L80,44" stroke="rgba(255,255,255,0.2)" stroke-width="2" />
+                            <path d="M12,120 L28,124" stroke="rgba(255,255,255,0.15)" stroke-width="2" />
+                            <path d="M88,120 L72,124" stroke="rgba(255,255,255,0.15)" stroke-width="2" />
+
+                            <!-- Preenchimento Fluido Interno com ClipPath -->
+                            <g clip-path="url(#bin-interior-clip)">
+                                <!-- O elemento y se move de 140 (vazio) até 35 (cheio) -->
+                                <rect id="bin-fluid-level" x="18" y="140" width="64" height="110" 
+                                      fill="url(#fluid-grad-green)" style="transition: y 0.5s ease, fill 0.5s ease;" />
+                            </g>
+
+                            <!-- Tampa Articulada da Lixeira -->
+                            <path d="M16,28 L84,28 Q86,28 86,26 L82,21 Q81,19 78,19 L22,19 Q19,19 18,21 L14,26 Q14,28 16,28 Z" 
+                                  fill="#4b5563" 
+                                  stroke="#374151" 
+                                  stroke-width="1.5" />
+                            <!-- Puxador da Tampa -->
+                            <rect x="42" y="13" width="16" height="6" rx="2" fill="#1f2937" stroke="#4b5563" stroke-width="1" />
+                        </svg>
+                    </div>
+                    <div class="bin-overlay-info">
+                        Lixeira ID: UPM-Smart-01
+                    </div>
+                </div>
+            </div>
+
+            <!-- PAINEL DE DETALHES -->
+            <div class="details-section">
+                
+                <!-- CARTÃO DE STATUS -->
+                <div class="status-card">
+                    <div class="status-card-header">
+                        <div class="status-card-title">Status de Armazenamento</div>
+                        <div class="status-badge badge-vazia" id="status-badge">Aguardando dados</div>
+                    </div>
+                    <div class="status-description" id="status-description-text">
+                        A lixeira está aguardando as primeiras transmissões via broker MQTT para exibir a análise volumétrica.
+                    </div>
+                </div>
+
+                <!-- METRICAS DE LATÊNCIA EXPERIMENTAIS -->
+                <div class="latency-card">
+                    <div class="latency-title">
+                        <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                        Métricas Experimentais de Latência (Artigo)
+                    </div>
+                    <table class="latency-table">
+                        <thead>
+                            <tr>
+                                <th>Bateria de Teste</th>
+                                <th>Upload Sensor (HC-SR04)</th>
+                                <th>Reação Atuador (MOSFET/LED)</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>Bateria 1</td>
+                                <td><span class="latency-badge">42 ms</span></td>
+                                <td><span class="latency-badge">55 ms</span></td>
+                            </tr>
+                            <tr>
+                                <td>Bateria 2</td>
+                                <td><span class="latency-badge">48 ms</span></td>
+                                <td><span class="latency-badge">62 ms</span></td>
+                            </tr>
+                            <tr>
+                                <td>Bateria 3</td>
+                                <td><span class="latency-badge">41 ms</span></td>
+                                <td><span class="latency-badge">58 ms</span></td>
+                            </tr>
+                            <tr>
+                                <td>Bateria 4</td>
+                                <td><span class="latency-badge">45 ms</span></td>
+                                <td><span class="latency-badge">59 ms</span></td>
+                            </tr>
+                            <tr class="highlight-row">
+                                <td>Latência Média</td>
+                                <td><span class="latency-badge" style="color: #10b981;">44.0 ms</span></td>
+                                <td><span class="latency-badge" style="color: #3b82f6;">58.5 ms</span></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- CONSOLE TELEMETRIA -->
+                <div class="console-card">
+                    <div class="console-header">
+                        <div class="console-title">Mensagem MQTT Recebida</div>
+                        <span style="font-size: 11px; color: var(--text-muted); font-family: monospace;" id="topic-name">tópico: --</span>
+                    </div>
+                    <div class="console-body" id="console-log">Nenhum dado recebido ainda. Para testar sem hardware físico conectado, use o painel de simulação clicando na engrenagem no canto inferior direito.</div>
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+
+    <!-- MODAL DE ALERTA -->
+    <div class="modal-overlay" id="alert-modal">
+        <div class="modal-box">
+            <div class="modal-icon-alert">
+                <svg viewBox="0 0 24 24">
+                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h-2v-2h6v2h-2v2zm0-5h-2V7h2v5z" />
+                </svg>
+            </div>
+            <h2 class="modal-title">Alerta de Capacidade Crítica!</h2>
+            <p class="modal-description">
+                A lixeira inteligente **UPM-Smart-01** atingiu o nível crítico de preenchimento (<strong id="modal-nivel-pct">--%</strong>).
+                <br><br>
+                Um alerta de urgência foi emitido e encaminhado via MQTT à <strong>Empresa de Limpeza Urbana</strong> para inclusão imediata deste ponto na rota de coleta ativa.
+            </p>
+
+            <!-- SIMULAÇÃO DE MAPA NO MODAL -->
+            <div class="modal-map-container">
+                <svg width="100%" height="100%">
+                    <!-- Grid de fundo -->
+                    <defs>
+                        <pattern id="grid" width="20" height="20" patternUnits="userSpaceOnUse">
+                            <rect width="20" height="20" fill="none" stroke="rgba(255,255,255,0.03)" stroke-width="1"/>
+                        </pattern>
+                    </defs>
+                    <rect width="100%" height="100%" fill="url(#grid)" />
+                    
+                    <!-- Ruas / Caminhos -->
+                    <path d="M50,90 L250,90 L250,30 L380,30" stroke="rgba(255,255,255,0.07)" stroke-width="8" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+                    
+                    <!-- Rota de Coleta em Fluxo -->
+                    <path d="M50,90 L250,90 L250,30 L380,30" class="map-route-line" />
+                    
+                    <!-- Marcador: Garagem de Limpeza -->
+                    <circle cx="50" cy="90" r="6" fill="#3b82f6" stroke="#ffffff" stroke-width="1.5" />
+                    <text x="35" y="110" fill="#9ca3af" font-size="9" font-weight="700">Central</text>
+
+                    <!-- Marcador: Lixeira Cheia -->
+                    <circle cx="380" cy="30" r="4.5" class="map-marker-bin" />
+                    <text x="345" y="18" fill="#ef4444" font-size="9" font-weight="700">Lixeira UPM-01</text>
+
+                    <!-- Caminhão de Lixo Animado -->
+                    <g class="truck-translator">
+                        <g class="truck-rotator">
+                            <!-- Desenho mini caminhão de lixo -->
+                            <rect x="-10" y="-6" width="16" height="10" rx="1.5" fill="#10b981" />
+                            <rect x="6" y="-4" width="6" height="7" rx="1" fill="#e5e7eb" />
+                            <circle cx="-5" cy="6" r="2.5" fill="#000000" stroke="#ffffff" stroke-width="0.5"/>
+                            <circle cx="7" cy="6" r="2.5" fill="#000000" stroke="#ffffff" stroke-width="0.5"/>
+                        </g>
+                    </g>
+                </svg>
+            </div>
+
+            <button class="modal-btn-confirm" id="modal-close-btn">Confirmar Recebimento</button>
+        </div>
+    </div>
+
+    <!-- BOTÃO FLUTUANTE DA GAVETA DE SIMULAÇÃO -->
+    <div class="sim-drawer-btn" id="sim-toggle-btn" title="Painel de Simulação (Dev)">
+        <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
+            <path d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+        </svg>
+    </div>
+
+    <!-- GAVETA DE SIMULAÇÃO -->
+    <div class="sim-panel-drawer" id="sim-drawer">
+        <div class="sim-panel-header">
+            <div class="sim-panel-title">Painel Simulador MQTT (Ambiente de Testes)</div>
+            <span style="font-size: 11px; color: var(--text-muted);">Simule o envio de dados do ESP32 para o broker</span>
+        </div>
+        <div class="sim-panel-grid">
+            
+            <!-- Sliders -->
+            <div class="sim-control-group">
+                <div class="sim-control-label">
+                    <span>Nível de Preenchimento da Lixeira</span>
+                    <strong id="sim-nivel-txt">50%</strong>
+                </div>
+                <input type="range" min="0" max="100" value="50" class="sim-slider" id="sim-nivel-slider">
+            </div>
+
+            <div class="sim-control-group">
+                <div class="sim-control-label">
+                    <span>Distância Sensor HC-SR04</span>
+                    <strong id="sim-dist-txt">200 cm</strong>
+                </div>
+                <input type="range" min="0" max="400" value="200" class="sim-slider" id="sim-dist-slider">
+            </div>
+
+        </div>
+
+        <div class="sim-btn-group">
+            <button class="sim-btn" id="sim-btn-empty">Lixeira Vazia (10%)</button>
+            <button class="sim-btn" id="sim-btn-half">Lixeira Média (50%)</button>
+            <button class="sim-btn" id="sim-btn-critical" style="color: var(--color-critica);">Lixeira Cheia (95%)</button>
+            <button class="sim-btn sim-btn-primary" id="sim-btn-send">Disparar Evento Simulador</button>
+        </div>
+    </div>
+
+    <script>
+        // CONFIGURAÇÕES MQTT
+        const broker = "wss://broker.hivemq.com:8884/mqtt";
+        const topic = "MACKENZIE/SMARTWASTE/VOLUMETRIA";
+
+        // Elementos do Dashboard
+        const conexaoStatus = document.getElementById("conexao-status");
+        const conexaoDot = document.getElementById("conexao-dot");
+        const conexaoBar = document.getElementById("conexao-bar");
+        
+        const distanciaValue = document.getElementById("distancia-value");
+        const distanciaBar = document.getElementById("distancia-bar");
+        
+        const nivelValue = document.getElementById("nivel-value");
+        const nivelBar = document.getElementById("nivel-bar");
+        
+        const brilhoValue = document.getElementById("brilho-value");
+        const brilhoBar = document.getElementById("brilho-bar");
+        
+        const statusBadge = document.getElementById("status-badge");
+        const statusDescriptionText = document.getElementById("status-description-text");
+        const consoleLog = document.getElementById("console-log");
+        const topicName = document.getElementById("topic-name");
+        
+        // Elementos Lixeira SVG
+        const binFluidLevel = document.getElementById("bin-fluid-level");
+        const binGlowAmbient = document.getElementById("bin-glow-ambient");
+        const sensorSonarWaves = document.getElementById("sensor-sonar-waves");
+
+        // Elementos Modal
+        const alertModal = document.getElementById("alert-modal");
+        const modalNivelPct = document.getElementById("modal-nivel-pct");
+        const modalCloseBtn = document.getElementById("modal-close-btn");
+
+        // Elementos Gaveta Simulação
+        const simToggleBtn = document.getElementById("sim-toggle-btn");
+        const simDrawer = document.getElementById("sim-drawer");
+        const simNivelSlider = document.getElementById("sim-nivel-slider");
+        const simNivelTxt = document.getElementById("sim-nivel-txt");
+        const simDistSlider = document.getElementById("sim-dist-slider");
+        const simDistTxt = document.getElementById("sim-dist-txt");
+        
+        const simBtnEmpty = document.getElementById("sim-btn-empty");
+        const simBtnHalf = document.getElementById("sim-btn-half");
+        const simBtnCritical = document.getElementById("sim-btn-critical");
+        const simBtnSend = document.getElementById("sim-btn-send");
+
+        // Estado do Alerta (Histerese)
+        let modalOpened = false;
+
+        // INICIALIZAÇÃO CLIENTE MQTT
+        topicName.textContent = `tópico: ${topic}`;
+        
+        const client = mqtt.connect(broker, {
+            clientId: "smartwaste-dashboard-" + Math.random().toString(16).substring(2, 10),
+            keepalive: 60,
+            reconnectPeriod: 5000
+        });
+
+        client.on("connect", () => {
+            conexaoStatus.textContent = "Online";
+            conexaoDot.className = "pulse-indicator state-online";
+            conexaoBar.style.width = "100%";
+            conexaoBar.style.backgroundColor = "var(--color-vazia)";
+            
+            client.subscribe(topic, (err) => {
+                if (!err) {
+                    console.log("Subscrito ao tópico: " + topic);
+                }
+            });
+        });
+
+        client.on("error", (err) => {
+            conexaoStatus.textContent = "Erro";
+            conexaoDot.className = "pulse-indicator state-offline";
+            conexaoBar.style.width = "100%";
+            conexaoBar.style.backgroundColor = "var(--color-critica)";
+            console.error("Erro no cliente MQTT:", err);
+        });
+
+        client.on("offline", () => {
+            conexaoStatus.textContent = "Offline";
+            conexaoDot.className = "pulse-indicator state-offline";
+            conexaoBar.style.width = "0%";
+        });
+
+        // Evento de Mensagem Recebida do MQTT Broker
+        client.on("message", (receivedTopic, message) => {
+            try {
+                const payloadStr = message.toString();
+                const data = JSON.parse(payloadStr);
+                atualizarInterface(data, false);
+            } catch (error) {
+                consoleLog.textContent = `[Erro parsing] Não foi possível interpretar o JSON.\nDados brutos:\n${message.toString()}`;
+            }
+        });
+
+        // FUNÇÃO PRINCIPAL: ATUALIZAÇÃO DA INTERFACE COM OS DADOS
+        function atualizarInterface(data, isSimulated) {
+            // Se for simulado, sinalizar no log de telemetria
+            const prefix = isSimulated ? "[SIMULADO MQTT] " : "[REAL MQTT] ";
+            consoleLog.textContent = prefix + JSON.stringify(data, null, 2);
+            
+            // 1. Extração e Normalização de Variáveis
+            const distancia = data.distancia_cm !== undefined ? data.distancia_cm : 200;
+            const nivel = data.nivel_percentual !== undefined ? data.nivel_percentual : 50;
+            const brilho = data.brilho_led !== undefined ? data.brilho_led : Math.round((nivel / 100) * 255);
+            const status = data.status || classificarStatus(nivel);
+
+            // 2. Atualização dos Cards de Métricas
+            distanciaValue.textContent = distancia + " cm";
+            // Sensor trabalha no range de 0 a 400cm no código do ESP32
+            const distPercent = Math.min(100, Math.max(0, (distancia / 400) * 100));
+            distanciaBar.style.width = distPercent + "%";
+
+            nivelValue.textContent = nivel + "%";
+            nivelBar.style.width = nivel + "%";
+            
+            brilhoValue.textContent = brilho + " (PWM)";
+            const brilhoPercent = Math.min(100, Math.max(0, (brilho / 255) * 100));
+            brilhoBar.style.width = brilhoPercent + "%";
+
+            // Cores dinâmicas nos cartões conforme nível de preenchimento
+            let colorVar = "var(--color-vazia)";
+            if (nivel >= 90) colorVar = "var(--color-critica)";
+            else if (nivel >= 70) colorVar = "var(--color-alta)";
+            else if (nivel >= 40) colorVar = "var(--color-normal)";
+            else if (nivel >= 15) colorVar = "var(--color-baixa)";
+
+            nivelBar.style.backgroundColor = colorVar;
+
+            // 3. Atualização Física da Lixeira (SVG)
+            // A lixeira SVG tem o Y mapeado de 140 (vazio) a 35 (totalmente cheio)
+            // delta Y = 145 - 35 = 110.
+            const minSvgY = 35;
+            const maxSvgY = 140;
+            const svgY = maxSvgY - ((nivel / 100) * (maxSvgY - minSvgY));
+            
+            binFluidLevel.setAttribute("y", svgY);
+            
+            // Gradiente e cor da lixeira
+            let gradientId = "url(#fluid-grad-green)";
+            if (nivel >= 90) gradientId = "url(#fluid-grad-red)";
+            else if (nivel >= 70) gradientId = "url(#fluid-grad-orange)";
+            else if (nivel >= 40) gradientId = "url(#fluid-grad-yellow)";
+            else if (nivel >= 15) gradientId = "url(#fluid-grad-green)";
+            
+            binFluidLevel.setAttribute("fill", gradientId);
+
+            // Efeito Sonar do Sensor (Pisca caso esteja medindo)
+            sensorSonarWaves.style.display = "block";
+            setTimeout(() => {
+                sensorSonarWaves.style.display = "none";
+            }, 600);
+
+            // Brilho ambiente dinâmico (Feedback visual do LED externo de 12V via MOSFET)
+            // A opacidade do glow reflete a intensidade PWM do LED
+            const glowOpacity = Math.min(0.7, (brilho / 255) * 0.7);
+            binGlowAmbient.style.backgroundColor = colorVar;
+            binGlowAmbient.style.opacity = glowOpacity;
+            binGlowAmbient.style.transform = `scale(${1 + (nivel/200)})`;
+
+            // 4. Cartão de Status Detalhado
+            statusBadge.className = `status-badge badge-${status.toLowerCase()}`;
+            statusBadge.textContent = status;
+
+            let descricaoText = "";
+            switch (status) {
+                case "CRITICA":
+                    descricaoText = "NÍVEL CRÍTICO: Lixeira com preenchimento superior a 90%. Fita de LED operando com brilho máximo para sinalização urbana. Rota de limpeza recomendada emergencialmente.";
+                    break;
+                case "ALTA":
+                    descricaoText = "Nível Alto: Preenchimento entre 70% e 90%. Intensidade do LED elevada para sinalizar transeuntes. O ponto deve ser incluído na rota de coleta do dia.";
+                    break;
+                case "NORMAL":
+                    descricaoText = "Nível Normal: Preenchimento médio entre 40% e 70%. Sistema operando sob parâmetros estáveis de descarte ordinário.";
+                    break;
+                case "BAIXA":
+                    descricaoText = "Nível Baixo: Nível volumétrico entre 15% e 40%. Baixa necessidade de esvaziamento imediato.";
+                    break;
+                case "VAZIA":
+                default:
+                    descricaoText = "Lixeira Vazia: Abaixo de 15%. Iluminação de feedback apagada para otimização do consumo energético da bateria/rede.";
+                    break;
+            }
+            statusDescriptionText.textContent = descricaoText;
+
+            // 5. GATILHO DO MODAL (Histerese: abre em >= 90%, reativa em < 80%)
+            if (nivel >= 90) {
+                if (!modalOpened) {
+                    modalOpened = true;
+                    abrirModal(nivel);
+                }
+            } else if (nivel < 80) {
+                // Rearma o modal quando a lixeira é significativamente esvaziada (Histerese)
+                modalOpened = false;
+            }
+        }
+
+        // Função utilitária para classificar status caso não venha no payload
+        function classificarStatus(nivel) {
+            if (nivel >= 90) return "CRITICA";
+            if (nivel >= 70) return "ALTA";
+            if (nivel >= 40) return "NORMAL";
+            if (nivel >= 15) return "BAIXA";
+            return "VAZIA";
+        }
+
+        // MODAL DE ALERTA: CONTROLE
+        function abrirModal(nivel) {
+            modalNivelPct.textContent = nivel + "%";
+            alertModal.classList.add("active");
+            
+            // Reiniciar animação do caminhão de lixo no mapa
+            const translator = document.querySelector(".truck-translator");
+            const rotator = document.querySelector(".truck-rotator");
+            if (translator && rotator) {
+                translator.style.animation = 'none';
+                rotator.style.animation = 'none';
+                translator.offsetHeight; // Truque para trigger de reflow
+                rotator.offsetHeight; // Truque para trigger de reflow
+                translator.style.animation = 'truck-drive-translate 6s infinite ease-in-out';
+                rotator.style.animation = 'truck-drive-rotate 6s infinite ease-in-out';
+            }
+        }
+
+        function fecharModal() {
+            alertModal.classList.remove("active");
+        }
+
+        modalCloseBtn.addEventListener("click", fecharModal);
+        alertModal.addEventListener("click", (e) => {
+            if (e.target === alertModal) fecharModal();
+        });
+
+        // GAVETA DE SIMULAÇÃO (DEV PANEL)
+        simToggleBtn.addEventListener("click", () => {
+            simDrawer.classList.toggle("active");
+        });
+
+        // Atualizar valores de label em tempo real nos sliders do simulador
+        simNivelSlider.addEventListener("input", (e) => {
+            const val = e.target.value;
+            simNivelTxt.textContent = val + "%";
+            
+            // Simular a relação inversa que o sensor do ESP32 faz:
+            // 100% cheio = 0cm de distância
+            // 0% cheio = 400cm de distância
+            const distCalculada = Math.round(400 - (val / 100) * 400);
+            simDistSlider.value = distCalculada;
+            simDistTxt.textContent = distCalculada + " cm";
+        });
+
+        simDistSlider.addEventListener("input", (e) => {
+            const val = e.target.value;
+            simDistTxt.textContent = val + " cm";
+            
+            // Converter distância para porcentagem
+            const nivelCalculado = Math.round(((400 - val) / 400) * 100);
+            simNivelSlider.value = nivelCalculado;
+            simNivelTxt.textContent = nivelCalculado + "%";
+        });
+
+        // Botoes auxiliares do simulador para agilizar os testes
+        simBtnEmpty.addEventListener("click", () => {
+            simNivelSlider.value = 10;
+            simNivelTxt.textContent = "10%";
+            simDistSlider.value = 360;
+            simDistTxt.textContent = "360 cm";
+            dispararSimulacao();
+        });
+
+        simBtnHalf.addEventListener("click", () => {
+            simNivelSlider.value = 50;
+            simNivelTxt.textContent = "50%";
+            simDistSlider.value = 200;
+            simDistTxt.textContent = "200 cm";
+            dispararSimulacao();
+        });
+
+        simBtnCritical.addEventListener("click", () => {
+            simNivelSlider.value = 95;
+            simNivelTxt.textContent = "95%";
+            simDistSlider.value = 20;
+            simDistTxt.textContent = "20 cm";
+            dispararSimulacao();
+        });
+
+        // Evento de Disparo do Simulador
+        simBtnSend.addEventListener("click", dispararSimulacao);
+
+        function dispararSimulacao() {
+            const nivel = parseInt(simNivelSlider.value);
+            const distancia = parseInt(simDistSlider.value);
+            
+            // Fórmula do ESP32: map(percentualCheio, 0, 100, 0, 255)
+            const brilho = Math.round((nivel / 100) * 255);
+            const status = classificarStatus(nivel);
+
+            const payloadSimulado = {
+                projeto: "SmartWaste",
+                distancia_cm: distancia,
+                distancia_minima_cm: 0,
+                distancia_maxima_cm: 400,
+                nivel_percentual: nivel,
+                brilho_led: brilho,
+                status: status
+            };
+
+            atualizarInterface(payloadSimulado, true);
+        }
+    </script>
+</body>
+
+</html>
