@@ -12,4 +12,5 @@ Sistema IoT para Otimização da Gestão de Resíduos UrbanosO SmartWaste é uma
 
 🔗 Links do ProjetoVídeo de Apresentação no YouTube: Assista aqui ao vídeo com a demonstração prática
 (https://youtu.be/V-V8FADDZLI?si=zzfj5BFacXrLq2IT)
+
 Desenvolvido por: José Fellipe (RA: 10433493) Instituição: Universidade Presbiteriana Mackenzie
